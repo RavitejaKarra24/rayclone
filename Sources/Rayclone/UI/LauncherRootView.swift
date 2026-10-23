@@ -66,7 +66,10 @@ struct LauncherRootView: View {
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
         }
-        .shadow(color: .black.opacity(theme.isDark ? 0.55 : 0.25), radius: 32, x: 0, y: 14)
+        // No SwiftUI shadow here: the hosting view is exactly the panel's size,
+        // so a card shadow gets clipped to the window's rectangular bounds and
+        // leaves a hard hairline around each rounded corner. The panel's own
+        // window shadow (`NSPanel.hasShadow`) follows the rounded alpha instead.
         .preferredColorScheme(theme.isDark ? .dark : .light)
         .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { searchFocused = true }
@@ -439,6 +442,8 @@ struct ActionPanelView: View {
             RoundedRectangle(cornerRadius: Metric.radius12, style: .continuous)
                 .strokeBorder(theme.borderSecondary, lineWidth: 1)
         )
-        .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
+        // Kept small enough to stay inside the padding around the card so it is
+        // never sliced by the panel's edge.
+        .shadow(color: .black.opacity(0.35), radius: 6, y: 3)
     }
 }
