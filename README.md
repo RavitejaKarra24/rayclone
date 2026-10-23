@@ -158,7 +158,11 @@ Scripts/build-app.sh    # assemble dist/Rayclone.app without installing
 ## Limitations
 
 - **Source-only.** No signing identity, no notarization, no DMG, no Homebrew
-  cask. Each machine builds its own copy.
+  cask, no releases. Each machine builds its own copy. Ad-hoc signing keeps the
+  bundle internally consistent; it is not Developer ID signing. `spctl --assess`
+  reports `rejected` for any non-notarized app — that is expected. The locally
+  built copy launches normally because it never carries a
+  `com.apple.quarantine` flag, which `install.sh` also clears explicitly.
 - **Rebuilds can re-prompt for permissions.** A materially different build may
   make macOS ask for Accessibility again.
 - **Window management and clipboard paste are only lightly tested.** Both need
