@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-and-validate:
+    # macOS runners ship a full Xcode toolchain, which the SwiftUI macro plugin
+    # requires.
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Build and test
+        run: |
+          swift build
+          swift test
+
+      - name: Assemble and validate the app bundle
+        run: |
+          set -euo pipefail
+          Scripts/build-app.sh
+
+          APP="dist/Rayclone.app"
+          test -x "$APP/Contents/MacOS/Rayclone"
+          plutil -lint "$APP/Contents/Info.plist"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          codesign -dv --verbose=4 "$APP" 2>&1 | grep -E "Identifier|Signature|Format"
+
+      - name: Verify bundled resources are present in the app
+        run: |
+          set -euo pipefail
+          APP="dist/Rayclone.app"
+          ls -l "$APP/Contents/Resources/AppIcon.icns"
+          find "$APP/Contents/Resources" -name "emoji.json" -print
+          test -n "$(find "$APP/Contents/Resources" -name emoji.json -print -quit)"
+
+      - name: Verify the emoji dataset is reproducible
+        run: |
+          set -euo pipefail
+          before="$(shasum -a 256 Sources/Rayclone/Resources/emoji.json | cut -d' ' -f1)"
+          python3 Scripts/generate_emoji.py >/dev/null
+          after="$(shasum -a 256 Sources/Rayclone/Resources/emoji.json | cut -d' ' -f1)"
+          test "$before" = "$after" || { echo "emoji.json is stale" >&2; exit 1; }

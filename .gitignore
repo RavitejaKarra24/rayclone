@@ -1,0 +1,39 @@
+# Build output
+.build/
+dist/
+*.app/
+Icon.iconset/
+
+# macOS metadata
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+# Xcode / SwiftPM state
+.swiftpm/
+xcuserdata/
+*.xcuserstate
+*.xccheckout
+*.xcscmblueprint
+*.moved-aside
+
+# Editors and local tooling
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Personal reference doc, not part of the published project
+lessons.md
+
+# Local scratch files
+*.log
+tmp/
+
+# Explicitly tracked artifacts: the icon and the generated dataset are part of
+# the source tree and must never be ignored.
+!Icon.icns
+!Sources/Rayclone/Resources/emoji.json
+!docs/*.png
