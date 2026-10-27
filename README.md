@@ -26,7 +26,7 @@ prebuilt binaries; you clone it, build it locally, and install it at
 | --- | --- |
 | Root search | Fuzzy ranking (prefix > word boundary > consecutive > scattered) blended with time-decayed usage, grouped into sections |
 | Applications | Indexes `/Applications`, `Utilities`, `/System/Applications`, the Cryptexes volume and `~/Applications`; launch, reveal, copy path, quit |
-| Files | Spotlight-backed search with Quick Look, reveal, open-with, copy path/name, move to trash |
+| Files | Spotlight-backed search with Quick Look, reveal, open-with, copy path/name, move to trash. Name relevance decides the cut, folders are listed in their own section above files (so a folder and file sharing a name show the folder first) |
 | Calculator | Expressions typed directly into the search field: precedence, `^`, `%`, `!`, functions, `0x`/`0b`, and hex/octal/binary rows |
 | Clipboard history | Text, image and file captures with dedupe, pin, delete, and paste |
 | Snippets | Saved text with a keyword, dynamic placeholders (`{date}`, `{time}`, `{clipboard}`, `{uuid}`), and optional system-wide keyword expansion |

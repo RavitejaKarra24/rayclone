@@ -18,11 +18,14 @@ enum ResultSectionOrder {
         case "Window Management": return 7
         case "System Actions": return 8
         case "Emoji & Symbols": return 9
-        // Files sit above clipboard history: a filename match is usually what
-        // the user is after, and clipboard text matches are noisier.
-        case "Files": return 10
-        case "Clipboard History": return 11
-        case "Running": return 12
+        // Folders and files sit above clipboard history: a filename match is
+        // usually what the user is after, and clipboard text matches are
+        // noisier. Folders come first so a folder name that also matches a file
+        // name is always listed above that file.
+        case "Folders": return 10
+        case "Files": return 11
+        case "Clipboard History": return 12
+        case "Running": return 13
         default: return 15
         }
     }

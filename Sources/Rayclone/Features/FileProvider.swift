@@ -11,6 +11,10 @@ import Quartz
 final class FileProvider: CommandProvider {
     let id = "files"
 
+    /// Scanning every Spotlight hit is what keeps folders visible; cap it so a
+    /// two-letter term cannot stall the main actor.
+    private static let scanLimit = 1200
+
     private var resultsByTerm: [String: [SearchItem]] = [:]
     private var activeTerm: String?
     private var query: NSMetadataQuery?
@@ -57,7 +61,12 @@ final class FileProvider: CommandProvider {
             "*\(term)*"
         )
         query.sortDescriptors = [NSSortDescriptor(key: NSMetadataItemFSContentChangeDateKey, ascending: false)]
-        query.valueListAttributes = [NSMetadataItemPathKey, NSMetadataItemFSNameKey, NSMetadataItemContentTypeKey]
+        query.valueListAttributes = [
+            NSMetadataItemPathKey,
+            NSMetadataItemFSNameKey,
+            NSMetadataItemContentTypeKey,
+            NSMetadataItemContentTypeTreeKey,
+        ]
         self.query = query
         isSearching = true
         query.start()
@@ -66,27 +75,73 @@ final class FileProvider: CommandProvider {
     private func finish(_ query: NSMetadataQuery) {
         guard query === self.query else { return }
         query.disableUpdates()
-        let limit = AppSettings.shared.fileSearchResultLimit
+        let limit = max(1, AppSettings.shared.fileSearchResultLimit)
         let showHidden = AppSettings.shared.fileSearchShowHidden
+        let term = activeTerm ?? ""
 
-        var items: [SearchItem] = []
-        for index in 0..<min(query.resultCount, limit * 3) {
+        // Spotlight can only sort by content-change date, so collect every
+        // match (bounded) and rank by name here. Truncating the raw result set
+        // is what hid folders: their modification dates are usually older than
+        // the files that happen to share the substring and changed recently.
+        var folders: [FileCandidate] = []
+        var files: [FileCandidate] = []
+        for index in 0..<min(query.resultCount, Self.scanLimit) {
             guard let result = query.result(at: index) as? NSMetadataItem,
                   let path = result.value(forAttribute: NSMetadataItemPathKey) as? String else { continue }
-            if !showHidden, path.contains("/.") { continue }
+            guard showHidden || !Self.isNoise(path) else { continue }
             let url = URL(fileURLWithPath: path)
-            let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
-            items.append(makeItem(url: url, isDirectory: isDirectory))
-            if items.count >= limit { break }
+            let isDirectory = Self.isDirectory(result) ?? Self.isDirectoryOnDisk(url)
+            let candidate = FileCandidate(
+                item: makeItem(url: url, isDirectory: isDirectory),
+                isDirectory: isDirectory,
+                pathDepth: path.reduce(0) { $1 == "/" ? $0 + 1 : $0 },
+                evidenceOrder: index
+            )
+            if isDirectory { folders.append(candidate) } else { files.append(candidate) }
         }
         query.enableUpdates()
         query.stop()
         isSearching = false
 
-        if let term = activeTerm {
+        let items = FileResultRanking.ordered(folders: folders, files: files, term: term, limit: limit)
+        if !term.isEmpty {
             resultsByTerm[term] = items
         }
         onResultsUpdated?()
+    }
+
+    /// Folder detection from the indexed content type, which avoids a `stat`
+    /// per result. Returns `nil` when the metadata does not say.
+    private static func isDirectory(_ result: NSMetadataItem) -> Bool? {
+        if let type = result.value(forAttribute: NSMetadataItemContentTypeKey) as? String {
+            if type == "public.folder" { return true }
+            if type == "public.item" { return nil }
+            return false
+        }
+        if let tree = result.value(forAttribute: NSMetadataItemContentTypeTreeKey) as? [String] {
+            return tree.contains("public.folder")
+        }
+        return nil
+    }
+
+    private static func isDirectoryOnDisk(_ url: URL) -> Bool {
+        (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
+    }
+
+    /// Paths Spotlight indexes that only ever add noise to a launcher: hidden
+    /// (dot) paths, system locations, and `~/Library` are skipped unless the
+    /// user opts into hidden results. iCloud Drive lives under `~/Library` but
+    /// is ordinary user content, so it stays.
+    private static func isNoise(_ path: String) -> Bool {
+        if path.contains("/.") { return true }
+        for root in ["/System/", "/Library/", "/private/", "/usr/", "/bin/", "/sbin/", "/opt/"]
+        where path.hasPrefix(root) {
+            return true
+        }
+        let library = AppPaths.home.appendingPathComponent("Library", isDirectory: true).path
+        if path == library { return true }
+        if path.hasPrefix(library + "/"), !path.hasPrefix(library + "/Mobile Documents/") { return true }
+        return false
     }
 
     private func makeItem(url: URL, isDirectory: Bool) -> SearchItem {
@@ -96,7 +151,7 @@ final class FileProvider: CommandProvider {
             title: displayName,
             subtitle: abbreviatedPath(url),
             icon: .file(url),
-            section: "Files",
+            section: isDirectory ? "Folders" : "Files",
             staticBoost: 0,
             actions: [
                 ItemAction(id: "open", title: isDirectory ? "Open Folder" : "Open File", icon: "arrow.up.forward.app", shortcut: "↩") {

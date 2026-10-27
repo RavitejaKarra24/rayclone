@@ -17,6 +17,14 @@ final class ResultSectionOrderTests: XCTestCase {
         XCTAssertLessThan(ResultSectionOrder.rank("Calculator"), files)
     }
 
+    func testFoldersRankAboveFiles() {
+        XCTAssertLessThan(
+            ResultSectionOrder.rank("Folders"),
+            ResultSectionOrder.rank("Files"),
+            "Folders must be listed before files"
+        )
+    }
+
     func testUnknownSectionsSortAfterKnownOnes() {
         XCTAssertGreaterThan(
             ResultSectionOrder.rank("Something New"),
@@ -28,7 +36,7 @@ final class ResultSectionOrderTests: XCTestCase {
         let sections = [
             "Calculator", "Web Searches", "Applications", "Rayclone", "Script Commands",
             "Snippets", "Quicklinks", "Window Management", "System Actions",
-            "Emoji & Symbols", "Files", "Clipboard History", "Running",
+            "Emoji & Symbols", "Folders", "Files", "Clipboard History", "Running",
         ]
         let ranks = sections.map(ResultSectionOrder.rank)
         XCTAssertEqual(ranks, ranks.sorted())
