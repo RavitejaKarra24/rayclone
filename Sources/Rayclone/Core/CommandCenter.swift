@@ -72,7 +72,95 @@ final class CommandCenter: ObservableObject {
             if abs(lhs.1 - rhs.1) > 0.001 { return lhs.1 > rhs.1 }
             return lhs.0.title.count < rhs.0.title.count
         }
-        return scored.prefix(AppSettings.shared.maxResults).map(\.0)
+        // Fallbacks are appended after the cut rather than ranked inside it, so a
+        // long result list never truncates them away, and they only make sense in
+        // root search: inside a scoped view the user is already where these rows
+        // would take them.
+        let fallbacks = mode == .root ? fallbackRows(term: parsed.term) : []
+        return scored.prefix(AppSettings.shared.maxResults).map(\.0) + fallbacks
+    }
+
+    /// Rows that re-run the current term inside a scoped command view. This is
+    /// what makes `typing a filename` reachable without scrolling down to
+    /// "Search Files" first: the command comes to the query.
+    private func fallbackRows(term: String) -> [SearchItem] {
+        let trimmed = term.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return [] }
+        let settings = AppSettings.shared
+
+        func row(
+            mode: LauncherMode,
+            title: String,
+            symbol: String,
+            subtitle: String
+        ) -> SearchItem {
+            SearchItem(
+                id: "fallback.\(mode.rawValue)",
+                title: title,
+                subtitle: subtitle,
+                keywords: [],
+                icon: .symbol(symbol),
+                section: "Suggested",
+                actions: [
+                    ItemAction(id: "scope", title: subtitle, icon: symbol, shortcut: "↩") {
+                        LauncherController.shared.setMode(mode, seededQuery: trimmed)
+                    }
+                ]
+            )
+        }
+
+        var rows: [SearchItem] = []
+        // FileProvider ignores one-character terms, so offering the jump would
+        // land the user on an empty list.
+        if settings.filesEnabled, trimmed.count >= 2 {
+            rows.append(row(
+                mode: .files,
+                title: "Search Files for \u{201C}\(trimmed)\u{201D}",
+                symbol: "doc.text.magnifyingglass",
+                subtitle: "Search Files"
+            ))
+        }
+        if settings.snippetsEnabled {
+            rows.append(row(
+                mode: .snippets,
+                title: "Search Snippets for \u{201C}\(trimmed)\u{201D}",
+                symbol: "text.badge.checkmark",
+                subtitle: "Search Snippets"
+            ))
+        }
+        if settings.clipboardEnabled {
+            rows.append(row(
+                mode: .clipboard,
+                title: "Search Clipboard History for \u{201C}\(trimmed)\u{201D}",
+                symbol: "doc.on.clipboard",
+                subtitle: "Clipboard History"
+            ))
+        }
+        if settings.emojiEnabled {
+            rows.append(row(
+                mode: .emoji,
+                title: "Search Emoji for \u{201C}\(trimmed)\u{201D}",
+                symbol: "face.smiling",
+                subtitle: "Emoji & Symbols"
+            ))
+        }
+        if settings.quicklinksEnabled {
+            rows.append(row(
+                mode: .quicklinks,
+                title: "Search Quicklinks for \u{201C}\(trimmed)\u{201D}",
+                symbol: "link",
+                subtitle: "Quicklinks"
+            ))
+        }
+        if settings.scriptCommandsEnabled {
+            rows.append(row(
+                mode: .scripts,
+                title: "Search Script Commands for \u{201C}\(trimmed)\u{201D}",
+                symbol: "terminal",
+                subtitle: "Script Commands"
+            ))
+        }
+        return rows
     }
 
     /// Display order of result sections.

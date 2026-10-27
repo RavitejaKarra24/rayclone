@@ -253,6 +253,7 @@ struct LauncherRootView: View {
             Spacer()
 
             footerHint(key: "⏎", label: "Action")
+            footerHint(key: "⌃N/P", label: "Move")
             footerHint(key: "⌘K", label: "Actions")
             footerHint(key: "⎋", label: "Close")
         }

@@ -26,6 +26,7 @@ enum ResultSectionOrder {
         case "Files": return 11
         case "Clipboard History": return 12
         case "Running": return 13
+        case "Suggested": return 14
         default: return 15
         }
     }

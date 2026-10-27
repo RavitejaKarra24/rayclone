@@ -48,6 +48,7 @@ final class LauncherController: ObservableObject {
     private(set) var panel: LauncherPanel?
     private var hostingView: NSHostingView<LauncherRootView>?
     private var keyMonitor: Any?
+    private var outsideClickMonitor: Any?
     private var previousAppPID: pid_t?
     private var suppressAutoHide = false
     private var becameKeyAt: Date?
@@ -75,10 +76,25 @@ final class LauncherController: ObservableObject {
             return self.handleKeyDown(event)
         }
 
-        // A non-activating panel can lose key status transiently (another app
-        // grabs focus, a system alert appears). Re-assert key so typing never
-        // silently leaks into whatever app is underneath, but never steal key
-        // from one of our own windows (settings, snippet editor, script output).
+        // A non-activating panel does not step aside on its own: it stays on
+        // screen and, worse, keeps key. Clicking into another app must dismiss
+        // the launcher so focus really moves to what was clicked (this is how
+        // every launcher behaves, and it is the only way out of the panel other
+        // than ⎋). Global monitors only see events delivered to other apps, so a
+        // click inside the panel never reaches this.
+        outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, let panel = self.panel, panel.isVisible else { return }
+                self.hide()
+            }
+        }
+
+        // A non-activating panel can lose key status transiently while it is
+        // being presented. Once it is settled, a resign means the user went
+        // somewhere else, so dismiss rather than re-steal key: re-keying here is
+        // what previously trapped keystrokes inside the launcher.
         NotificationCenter.default.addObserver(
             forName: NSWindow.didResignKeyNotification,
             object: panel,
@@ -88,8 +104,15 @@ final class LauncherController: ObservableObject {
                 guard let self, let panel = self.panel, panel.isVisible else { return }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                     guard panel.isVisible, !panel.isKeyWindow else { return }
+                    // One of our own windows (settings, an editor, an alert) took
+                    // key: keep the panel alive underneath it.
                     if let keyWindow = NSApp.keyWindow, keyWindow !== panel { return }
-                    panel.makeKey()
+                    if let becameKeyAt = self.becameKeyAt,
+                       Date().timeIntervalSince(becameKeyAt) < 0.2 {
+                        panel.makeKey()
+                        return
+                    }
+                    self.hide()
                 }
             }
         }
@@ -117,6 +140,7 @@ final class LauncherController: ObservableObject {
         // app, so the previously frontmost app keeps focus for pasting.
         panel.makeKeyAndOrderFront(nil)
         panel.orderFrontRegardless()
+        becameKeyAt = Date()
         presentationCount += 1
         focusSearchField()
         NotificationCenter.default.post(name: .launcherDidShow, object: nil)
@@ -138,12 +162,16 @@ final class LauncherController: ObservableObject {
         query = ""
         actionsVisible = false
         previousAppPID = nil
+        becameKeyAt = nil
     }
 
-    func setMode(_ newMode: LauncherMode) {
+    /// `seededQuery` carries the term the user already typed in root search
+    /// into the new command view, so scoping to a command does not force them
+    /// to type the same term twice.
+    func setMode(_ newMode: LauncherMode, seededQuery: String = "") {
         suppressAutoHide = true
         mode = newMode
-        query = ""
+        query = seededQuery
         selection = 0
         actionsVisible = false
         recompute()
@@ -189,7 +217,9 @@ final class LauncherController: ObservableObject {
         let sectionHeight: CGFloat = 22
         let rowHeight = Metric.rowHeight
         let chrome = Metric.headerHeight + Metric.footerHeight
-        let maxListHeight = CGFloat(8) * rowHeight + sectionHeight + listPadding
+        // 10 rows instead of 8 so the appended "Suggested" fallback rows stay
+        // reachable without scrolling on typical queries.
+        let maxListHeight = CGFloat(10) * rowHeight + sectionHeight + listPadding
 
         // Walk the rows exactly as the view lays them out so the panel never
         // ends on a half-clipped row.
@@ -279,6 +309,21 @@ final class LauncherController: ObservableObject {
         if flags.contains(.command), event.charactersIgnoringModifiers == "w" {
             hide()
             return nil
+        }
+
+        // ⌃N / ⌃P scroll the list the way macOS text fields move the caret, so
+        // the arrow-key reach is not the only way to walk results.
+        if flags.contains(.control), !flags.contains(.command), !flags.contains(.option) {
+            switch event.keyCode {
+            case 45: // ⌃N
+                moveSelection(1)
+                return nil
+            case 35: // ⌃P
+                moveSelection(-1)
+                return nil
+            default:
+                break
+            }
         }
 
         switch event.keyCode {
