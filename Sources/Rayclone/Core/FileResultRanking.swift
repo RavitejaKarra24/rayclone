@@ -31,6 +31,12 @@ enum FileResultRanking {
         return base
     }
 
+    /// The test Spotlight's `kMDItemFSName LIKE[cd] "*term*"` predicate
+    /// applies, repeated here for rows that never come from Spotlight.
+    static func nameContains(_ name: String, term: String) -> Bool {
+        name.range(of: term, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+    }
+
     /// Best `limit` candidates for one kind of hit (folders or files).
     static func pool(_ candidates: [FileCandidate], term: String, limit: Int) -> [FileCandidate] {
         guard limit > 0 else { return [] }

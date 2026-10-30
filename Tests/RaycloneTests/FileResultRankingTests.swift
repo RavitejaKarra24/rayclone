@@ -44,6 +44,15 @@ final class FileResultRankingTests: XCTestCase {
         )
     }
 
+    func testDirectlyListedFolderStillBeatsADeeperSpotlightHit() {
+        // `~/Downloads` comes from a direct listing (high evidence order) when
+        // Spotlight hides it; the shallower path must still win the tie.
+        let homeFolder = candidate("/Users/me/Downloads", isDirectory: true, order: 1200)
+        let nested = candidate("/Users/me/dock/downloads", isDirectory: true, order: 0)
+        let ordered = FileResultRanking.pool([nested, homeFolder], term: "downloads", limit: 2)
+        XCTAssertEqual(ordered.map(\.item.id), [homeFolder.item.id, nested.item.id])
+    }
+
     func testLimitAppliesToEachKind() {
         let folders = (0..<10).map { candidate("/Users/me/f\($0)dock", isDirectory: true, order: $0) }
         let files = (0..<10).map { candidate("/Users/me/f\($0)dock.txt", isDirectory: false, order: $0) }

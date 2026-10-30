@@ -26,7 +26,7 @@ prebuilt binaries; you clone it, build it locally, and install it at
 | --- | --- |
 | Root search | Fuzzy ranking (prefix > word boundary > consecutive > scattered) blended with time-decayed usage, grouped into sections |
 | Applications | Indexes `/Applications`, `Utilities`, `/System/Applications`, the Cryptexes volume and `~/Applications`; launch, reveal, copy path, quit |
-| Files | Spotlight-backed search with Quick Look, reveal, open-with, copy path/name, move to trash. Name relevance decides the cut, folders are listed in their own section above files (so a folder and file sharing a name show the folder first) |
+| Files | Spotlight-backed search of the whole machine with Quick Look, reveal, open-with, copy path/name, move to trash. Name relevance decides the cut, folders are listed in their own section above files (so a folder and file sharing a name show the folder first). Spotlight withholds everything inside the TCC-protected folders (`~/Downloads`, `~/Desktop`, `~/Documents`, iCloud Drive) from an app that has not been granted access, so those are indexed directly and merged in, subfolders included |
 | Calculator | Expressions typed directly into the search field: precedence, `^`, `%`, `!`, functions, `0x`/`0b`, and hex/octal/binary rows |
 | Clipboard history | Text, image and file captures with dedupe, pin, delete, and paste |
 | Snippets | Saved text with a keyword, dynamic placeholders (`{date}`, `{time}`, `{clipboard}`, `{uuid}`), and optional system-wide keyword expansion |
@@ -151,7 +151,7 @@ thread and publishes results back.
 Development commands:
 
 ```bash
-Scripts/check.sh        # zero-warning build + 20 unit tests + dataset reproducibility
+Scripts/check.sh        # zero-warning build + unit tests + dataset reproducibility
 Scripts/build-app.sh    # assemble dist/Rayclone.app without installing
 ```
 
@@ -165,6 +165,15 @@ Scripts/build-app.sh    # assemble dist/Rayclone.app without installing
   `com.apple.quarantine` flag, which `install.sh` also clears explicitly.
 - **Rebuilds can re-prompt for permissions.** A materially different build may
   make macOS ask for Accessibility again.
+- **File search leans on Spotlight.** The whole machine is queried, but the
+  result is only as complete as the Spotlight index: volumes with indexing
+  disabled are invisible, and system/library paths (`/System`, `/Library`,
+  `/usr`, `/opt`, `~/Library`) are filtered out unless *Include system and
+  library files* is on in Settings → Features. `~/Downloads`, `~/Desktop`,
+  `~/Documents` and iCloud Drive are walked directly instead, because
+  Spotlight withholds them from an app that has not been granted access to
+  them; that scan is capped at 30,000 entries and 3 seconds, so a folder with
+  more files than that is only partly covered until it shrinks.
 - **Window management and clipboard paste are only lightly tested.** Both need
   Accessibility trust, which was not granted on the machine this was written on;
   the code paths are implemented and degrade gracefully, but live resizing of a

@@ -134,6 +134,18 @@ struct SettingsView: View {
                 Toggle("Quicklinks", isOn: $settings.quicklinksEnabled)
                 Toggle("Script commands", isOn: $settings.scriptCommandsEnabled)
             }
+            Section("File search") {
+                Stepper(
+                    "Results per section: \(settings.fileSearchResultLimit)",
+                    value: $settings.fileSearchResultLimit,
+                    in: 1...50
+                )
+                Toggle("Include hidden files", isOn: $settings.fileSearchShowHidden)
+                Toggle("Include system and library files", isOn: $settings.fileSearchIncludeSystemPaths)
+                Text("\(settings.fileSearchIncludeSystemPaths ? "Searching" : "Skipping") /System, /Library, /usr, /opt and ~/Library. Spotlight indexes the whole machine; this switch only decides whether those paths are allowed into the list.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             Section("Tools") {
                 Toggle("Clipboard history", isOn: $settings.clipboardEnabled)
                 Toggle("Snippets", isOn: $settings.snippetsEnabled)

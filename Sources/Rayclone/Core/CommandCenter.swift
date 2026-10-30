@@ -57,27 +57,33 @@ final class CommandCenter: ObservableObject {
             return rootOrdering(scoped, mode: mode)
         }
 
-        var scored: [(SearchItem, Double)] = []
-        for item in scoped {
+        var scored: [(item: SearchItem, score: Double, order: Int)] = []
+        for (order, item) in scoped.enumerated() {
             guard let score = relevance(parsed.term, item: item) else { continue }
             let total = score + item.staticBoost + FrecencyStore.shared.boost(for: item.id)
-            scored.append((item, total))
+            scored.append((item, total, order))
         }
         scored.sort { lhs, rhs in
             // Group by section first so the list never repeats a header, then
-            // rank inside the group by relevance.
-            let lhsRank = sectionRank(lhs.0.section)
-            let rhsRank = sectionRank(rhs.0.section)
+            // rank inside the group by relevance. `order` is the last resort so
+            // providers that already ranked their rows (file search ranks by
+            // name match and path depth) are not reshuffled by a tie: a stable
+            // tie-break is what keeps `~/Downloads` above `~/dock/downloads`.
+            let lhsRank = sectionRank(lhs.item.section)
+            let rhsRank = sectionRank(rhs.item.section)
             if lhsRank != rhsRank { return lhsRank < rhsRank }
-            if abs(lhs.1 - rhs.1) > 0.001 { return lhs.1 > rhs.1 }
-            return lhs.0.title.count < rhs.0.title.count
+            if abs(lhs.score - rhs.score) > 0.001 { return lhs.score > rhs.score }
+            if lhs.item.title.count != rhs.item.title.count {
+                return lhs.item.title.count < rhs.item.title.count
+            }
+            return lhs.order < rhs.order
         }
         // Fallbacks are appended after the cut rather than ranked inside it, so a
         // long result list never truncates them away, and they only make sense in
         // root search: inside a scoped view the user is already where these rows
         // would take them.
         let fallbacks = mode == .root ? fallbackRows(term: parsed.term) : []
-        return scored.prefix(AppSettings.shared.maxResults).map(\.0) + fallbacks
+        return scored.prefix(AppSettings.shared.maxResults).map(\.item) + fallbacks
     }
 
     /// Rows that re-run the current term inside a scoped command view. This is

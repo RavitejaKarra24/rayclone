@@ -90,6 +90,12 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(fileSearchResultLimit, forKey: Keys.filesLimit) }
     }
 
+    /// Search system locations and `~/Library` too, instead of only user
+    /// content. Off by default: those trees are large and mostly noise.
+    @Published var fileSearchIncludeSystemPaths: Bool {
+        didSet { defaults.set(fileSearchIncludeSystemPaths, forKey: Keys.filesSystemPaths) }
+    }
+
     private enum Keys {
         static let themeID = "themeID"
         static let followSystem = "followSystemAppearance"
@@ -117,6 +123,7 @@ final class AppSettings: ObservableObject {
         static let clipboardConfidential = "clipboardIgnoreConfidential"
         static let filesHidden = "fileSearchShowHidden"
         static let filesLimit = "fileSearchResultLimit"
+        static let filesSystemPaths = "fileSearchIncludeSystemPaths"
     }
 
     private init() {
@@ -148,6 +155,7 @@ final class AppSettings: ObservableObject {
             Keys.clipboardConfidential: true,
             Keys.filesHidden: false,
             Keys.filesLimit: 12,
+            Keys.filesSystemPaths: false,
         ])
 
         themeID = defaults.string(forKey: Keys.themeID) ?? Theme.raycastDark.id
@@ -176,6 +184,7 @@ final class AppSettings: ObservableObject {
         clipboardIgnoreConfidential = defaults.bool(forKey: Keys.clipboardConfidential)
         fileSearchShowHidden = defaults.bool(forKey: Keys.filesHidden)
         fileSearchResultLimit = defaults.integer(forKey: Keys.filesLimit)
+        fileSearchIncludeSystemPaths = defaults.bool(forKey: Keys.filesSystemPaths)
     }
 
     var activeTheme: Theme {
